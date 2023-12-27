@@ -114,14 +114,17 @@ func (c *claim) Try(alloc *Allocator) bool {
 			addOwned()
 			c.sendResult(nil)
 		} else {
+			alloc.debugf("Failed to claim %q: %w", c.cidr, err) // FIXME: Remove
 			c.sendResult(err)
 		}
 	case (existingIdent == c.ident) || (c.ident == api.NoContainerID && existingIdent == c.cidr.Addr.String()):
 		// same identifier is claiming same address; that's OK
 		alloc.debugln("Re-Claimed", c.cidr, "for", c.ident)
+		alloc.debugf("Re-Claimed %v for %v", c.cidr, c.ident) // FIXME: Remove
 		c.sendResult(nil)
 	case existingIdent == c.cidr.Addr.String():
 		// Address already allocated via api.NoContainerID name and current ID is a real container ID:
+		alloc.debugf("CIDR %q already in use", c.cidr) // FIXME: Remove
 		c.sendResult(fmt.Errorf("address %s already in use", c.cidr))
 	case c.ident == api.NoContainerID:
 		// We do not know whether this is the same container or another one,
@@ -129,6 +132,7 @@ func (c *claim) Try(alloc *Allocator) bool {
 		alloc.debugln("Re-Claimed", c.cidr, "for ID", c.ident, "having existing ID as", existingIdent)
 		c.sendResult(nil)
 	default:
+		alloc.debugf("CIDR %q already owned by %v", existingIdent) // FIXME: Remove
 		// Addr already owned by container on this machine
 		c.sendResult(fmt.Errorf("address %s is already owned by %s", c.cidr.String(), existingIdent))
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/coreos/go-iptables/iptables"
 	"github.com/j-keck/arping"
+	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 )
@@ -118,13 +119,14 @@ func interfaceExistsInNamespace(netNSPath string, ifName string) bool {
 	return err == nil
 }
 
-func AttachContainer(netNSPath, id, ifName, bridgeName string, mtu int, withMulticastRoute bool, cidrs []*net.IPNet, keepTXOn bool, hairpinMode bool) error {
+func AttachContainer(logger *logrus.Logger, netNSPath, id, ifName, bridgeName string, mtu int, withMulticastRoute bool, cidrs []*net.IPNet, keepTXOn bool, hairpinMode bool) error {
 	// AttachContainer expects to be called in host pid namespace
 	const procPath = "/proc"
 
 	ns, err := netns.GetFromPath(netNSPath)
 	if err != nil {
-		return err
+		logger.Warnf("Failed to get path: %v", err)
+		return fmt.Errorf("failed to get path to network namespace handle %q: %w", netNSPath, err)
 	}
 	defer ns.Close()
 
@@ -146,7 +148,7 @@ func AttachContainer(netNSPath, id, ifName, bridgeName string, mtu int, withMult
 			return nil
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create and attach veth to weave bridge: %w", err)
 		}
 		if err = netlink.LinkSetHairpin(veth, hairpinMode); err != nil {
 			return fmt.Errorf("unable to set hairpin mode to %t for bridge side of veth %s: %s", hairpinMode, name, err)
@@ -166,7 +168,7 @@ func AttachContainer(netNSPath, id, ifName, bridgeName string, mtu int, withMult
 func setupIfaceAddrs(veth netlink.Link, withMulticastRoute bool, cidrs []*net.IPNet) error {
 	newAddresses, err := AddAddresses(veth, cidrs)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to add addresses: %w", err)
 	}
 
 	ifName := veth.Attrs().Name
@@ -180,17 +182,17 @@ func setupIfaceAddrs(veth netlink.Link, withMulticastRoute bool, cidrs []*net.IP
 		acceptRule := []string{"-i", ifName, "-s", subnet(ipnet), "-d", "224.0.0.0/4", "-j", "ACCEPT"}
 		exists, err := ipt.Exists("filter", "INPUT", acceptRule...)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to check if rulespec in specified table/chain exists: %w", err)
 		}
 		if !exists {
 			if err := ipt.Insert("filter", "INPUT", 1, acceptRule...); err != nil {
-				return err
+				return fmt.Errorf("failed to insert rulespec: %w", err)
 			}
 		}
 	}
 
 	if err := netlink.LinkSetUp(veth); err != nil {
-		return err
+		return fmt.Errorf("failed to enable the link device: %w", err)
 	}
 	for _, ipnet := range newAddresses {
 		// If we don't wait for a bit here, we see the arp fail to reach the bridge.

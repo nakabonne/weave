@@ -488,7 +488,7 @@ func (proxy *Proxy) attach(containerID string) error {
 	Log.Infof("Attaching container %s with WEAVE_CIDR \"%s\" to weave network", container.ID, strings.Join(cidrs, " "))
 	ips, err := proxy.allocateCIDRs(container.ID, cidrs)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to allocate CIDRs: %w", err)
 	}
 
 	fqdn := container.Config.Hostname + "." + container.Config.Domainname
@@ -505,9 +505,10 @@ func (proxy *Proxy) attach(containerID string) error {
 
 	pid := container.State.Pid
 	// Passing 0 for mtu means it will be taken from the bridge
-	err = weavenet.AttachContainer(weavenet.NSPathByPid(pid), fmt.Sprint(pid), weavenet.VethName, weavenet.WeaveBridgeName, 0, !proxy.NoMulticastRoute, ips, proxy.KeepTXOn, true)
+	err = weavenet.AttachContainer(Log, weavenet.NSPathByPid(pid), fmt.Sprint(pid), weavenet.VethName, weavenet.WeaveBridgeName, 0, !proxy.NoMulticastRoute, ips, proxy.KeepTXOn, true)
 	if err != nil {
-		return err
+		Log.Errorf("Failed to attach container: %v", err)
+		return fmt.Errorf("failed to attach container: %w", err)
 	}
 
 	if !proxy.WithoutDNS {
@@ -690,6 +691,7 @@ func (proxy *Proxy) runTransientContainer(entrypoint, cmd, binds []string) (err 
 
 	err = proxy.client.StartContainer(container.ID, nil)
 	if err != nil {
+		Log.Errorf("Failed to start a transient container for container %q: %v", container.ID, err)
 		return
 	}
 

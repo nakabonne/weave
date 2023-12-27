@@ -12,6 +12,7 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
+	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	weaveapi "github.com/weaveworks/weave/api"
@@ -138,7 +139,7 @@ func (c *CNIPlugin) CmdAdd(args *skel.CmdArgs) error {
 		id = fmt.Sprintf("%x", data)
 	}
 
-	if err := weavenet.AttachContainer(args.Netns, id, args.IfName, conf.BrName, conf.MTU, false, []*net.IPNet{&ip.Address}, false, conf.HairpinMode); err != nil {
+	if err := weavenet.AttachContainer(logrus.New(), args.Netns, id, args.IfName, conf.BrName, conf.MTU, false, []*net.IPNet{&ip.Address}, false, conf.HairpinMode); err != nil {
 		return err
 	}
 	if err := weavenet.WithNetNSLink(ns, args.IfName, func(link netlink.Link) error {
@@ -177,7 +178,9 @@ func setupRoutes(link netlink.Link, name string, ipnet net.IPNet, gw net.IP, rou
 }
 
 // As of CNI 0.5 spec:
-//   "Plugins should generally complete a DEL action without error even if some resources are missing"
+//
+//	"Plugins should generally complete a DEL action without error even if some resources are missing"
+//
 // this method should therefore return nil in most, if not all, cases.
 func (c *CNIPlugin) CmdDel(args *skel.CmdArgs) error {
 	conf, err := loadNetConf(args.StdinData)

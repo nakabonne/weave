@@ -32,7 +32,7 @@ func (w *watcher) ContainerStarted(id string) {
 
 	domain, err := w.weave.DNSDomain()
 	if err != nil {
-		w.driver.warn("ContainerStarted", "unable to get weave dns domain: %s", err)
+		w.driver.debug("ContainerStarted", "unable to get weave dns domain: %s", err)
 	}
 
 	// check that it's on our network

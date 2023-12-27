@@ -16,6 +16,10 @@ const (
 	MaxInterval     = 20 * time.Second
 )
 
+var (
+	Log = common.Log
+)
+
 // An observer for container events
 type ContainerObserver interface {
 	ContainerStarted(ident string)
@@ -147,7 +151,14 @@ func (pending pendingStarts) start(id string, c *Client, ob ContainerObserver) {
 		defer close(sync.done)
 		defer ob.ContainerStarted(id)
 		for {
-			if container, err := c.InspectContainer(id); err != nil || container.State.Pid != 0 {
+			container, err := c.InspectContainer(id)
+			if err != nil {
+				Log.Errorf("Failed to inspect container even though \"start\" event is sent: %v", err)
+				return
+			}
+			if container.State.Pid != 0 {
+				Log.Infof("Container has now pid %d", container.State.Pid)
+				//Log.Debugf("Container has now pid %d", container.State.Pid)
 				return
 			}
 			select {

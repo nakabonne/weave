@@ -10,7 +10,7 @@ import (
 	"net/http/httputil"
 	"sync"
 
-	"github.com/fsouza/go-dockerclient"
+	docker "github.com/fsouza/go-dockerclient"
 )
 
 func (proxy *Proxy) Intercept(i interceptor, w http.ResponseWriter, r *http.Request) {
@@ -60,7 +60,7 @@ func (proxy *Proxy) Intercept(i interceptor, w http.ResponseWriter, r *http.Requ
 	if resp.Header.Get("Content-Type") == "application/vnd.docker.raw-stream" {
 		doRawStream(w, resp, client)
 	} else if resp.TransferEncoding != nil && resp.TransferEncoding[0] == "chunked" {
-		doChunkedResponse(w, resp, client)
+		doChunkedResponse(w, resp, client, i)
 	} else {
 		w.WriteHeader(resp.StatusCode)
 		if _, err := io.Copy(w, resp.Body); err != nil {
@@ -128,7 +128,7 @@ type writeFlusher interface {
 	http.Flusher
 }
 
-func doChunkedResponse(w http.ResponseWriter, resp *http.Response, client *httputil.ClientConn) {
+func doChunkedResponse(w http.ResponseWriter, resp *http.Response, client *httputil.ClientConn, i interceptor) {
 	wf, ok := w.(writeFlusher)
 	if !ok {
 		http.Error(w, "Error forwarding chunked response body: flush not available", http.StatusInternalServerError)
@@ -151,7 +151,9 @@ func doChunkedResponse(w http.ResponseWriter, resp *http.Response, client *httpu
 		err = chunks.Err()
 	}
 	if err != nil {
-		Log.Errorf("Error forwarding chunked response body: %s", err)
+		// FIXME: Revert
+		//Log.Errorf("Error forwarding chunked response body: %s", err)
+		Log.Errorf("Error forwarding chunked response body when writing response from %T: %s", i, err)
 	}
 }
 

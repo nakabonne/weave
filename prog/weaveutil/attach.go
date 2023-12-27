@@ -56,7 +56,7 @@ func attach(args []string) error {
 		return err
 	}
 
-	err = weavenet.AttachContainer(weavenet.NSPathByPid(pid), fmt.Sprint(pid), weavenet.VethName, args[1], 0, withMulticastRoute, cidrs, keepTXOn, hairpinMode)
+	err = weavenet.AttachContainer(proxy.Log, weavenet.NSPathByPid(pid), fmt.Sprint(pid), weavenet.VethName, args[1], 0, withMulticastRoute, cidrs, keepTXOn, hairpinMode)
 	// If we detected an error but the container has died, tell the user that instead.
 	if err != nil && !processExists(pid) {
 		err = fmt.Errorf("Container %s died", args[0])

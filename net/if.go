@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"syscall"
+	"time"
 
 	"github.com/vishvananda/netlink"
 )
@@ -29,11 +30,32 @@ func ensureInterface(ifaceName string) (*net.Interface, error) {
 	if iface, err := findInterface(ifaceName); err == nil {
 		return iface, nil
 	}
-	for update := range ch {
-		if ifaceName == update.Link.Attrs().Name && update.IfInfomsg.Flags&syscall.IFF_UP != 0 {
-			break
+	/*
+		for update := range ch {
+			if ifaceName == update.Link.Attrs().Name && update.IfInfomsg.Flags&syscall.IFF_UP != 0 {
+				break
+			}
+		}
+	*/
+	// NOTE(woven-by-toyota): We settled on adding timeout here to avoid deadlock between weavewait and proxy.
+	const timeout = 15 * time.Second
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+L:
+	for {
+		select {
+		case <-timer.C:
+			return nil, fmt.Errorf("network interface %q didn't show up within %s", ifaceName, timeout)
+		case update, ok := <-ch:
+			if !ok {
+				break L
+			}
+			if ifaceName == update.Link.Attrs().Name && update.IfInfomsg.Flags&syscall.IFF_UP != 0 {
+				break L
+			}
 		}
 	}
+
 	iface, err := findInterface(ifaceName)
 	return iface, err
 }
